@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interoperability Knowledge Check</title> <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        /* Basic body styling using Inter font */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Custom styles for feedback */
+        .correct-feedback {
+            background-color: #dcfce7; /* Tailwind green-100 */
+            color: #166534; /* Tailwind green-800 */
+            border: 1px solid #86efac; /* Tailwind green-300 */
+        }
+        .incorrect-feedback {
+            background-color: #fee2e2; /* Tailwind red-100 */
+            color: #991b1b; /* Tailwind red-800 */
+            border: 1px solid #fca5a5; /* Tailwind red-300 */
+        }
+         /* Style for highlighting selected buttons */
+        .correct-answer-btn {
+             background-color: #bbf7d0 !important; /* Tailwind green-200 */
+             border-color: #22c55e !important; /* Tailwind green-500 */
+        }
+        .incorrect-answer-btn {
+             background-color: #fecaca !important; /* Tailwind red-200 */
+             border-color: #ef4444 !important; /* Tailwind red-500 */
+        }
+        /* Ensure buttons don't shrink when in flex container */
+        #prev-button, #next-button {
+            flex-shrink: 0;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
+    <div id="quiz-container" class="bg-white p-6 md:p-8 rounded-lg shadow-lg max-w-2xl w-full">
+        <h1 class="text-2xl md:text-3xl font-bold text-center text-blue-700 mb-6">Interoperability Knowledge Check</h1>
+
+        <div id="quiz-content">
+            <div id="question-area" class="mb-5">
+                <div id="question-text" class="text-lg font-semibold mb-4 text-gray-800"></div>
+                <div class="options space-y-3" id="options-container">
+                    </div>
+            </div>
+            <div id="feedback" class="mt-4 p-3 rounded-md text-sm font-medium hidden"></div> <div id="navigation-buttons" class="mt-6 flex justify-between items-center max-w-md mx-auto">
+                 <button id="prev-button" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-6 rounded-lg shadow transition duration-200 ease-in-out transform hover:-translate-y-0.5 hidden">Previous</button> <button id="next-button" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg shadow transition duration-200 ease-in-out transform hover:-translate-y-0.5 hidden">Next Question</button> </div>
+        </div>
+
+        <div id="results" class="text-center mt-6 hidden"> <h2 class="text-xl md:text-2xl font-bold text-blue-700 mb-3">Quiz Complete!</h2>
+            <p id="score" class="text-lg text-gray-700 mb-3"></p>
+            <p class="text-gray-600">Great job reviewing the concepts!</p>
+        </div>
+    </div>
+
+    <script>
+        // --- Quiz Data Array ---
+        // Contains objects, each representing a question.
+        const quizData = [
+            {
+                question: "You are developing a mobile application that allows patients to schedule appointments with their doctors, receive appointment reminders, and view their visit summaries. Which of the following standards would be MOST relevant for ensuring that the visit summaries can be easily shared with other healthcare providers' systems?",
+                options: ["LOINC", "RxNorm", "HL7 CDA", "DICOM"],
+                correctAnswerIndex: 2, // Index of the correct option in the 'options' array
+                feedback: "Correct! HL7 CDA is designed for exchanging clinical documents like visit summaries." // Feedback text
+            },
+            {
+                question: "A digital health startup is creating a platform that collects patient data from various wearable devices (like smartwatches) and transmits this data to a hospital's Electronic Health Record (EHR) system. Which standard would be the MOST suitable for enabling this data transmission using APIs?",
+                options: ["ICD-10-CM", "HL7 v2.x", "HL7 FHIR", "CPT"],
+                correctAnswerIndex: 2,
+                feedback: "Correct! HL7 FHIR is the modern standard for API-based data exchange."
+            },
+            {
+                question: "Which category of health data standards does HL7 FHIR belong to?",
+                options: ["Terminology Standards", "Content/Structure Standards", "Transport/Exchange Standards", "Privacy & Security Standards"],
+                correctAnswerIndex: 2,
+                feedback: "Correct! HL7 FHIR focuses on how data is moved between systems, making it a Transport/Exchange standard."
+            },
+            {
+                question: "Which of the following standards is used for coding clinical drugs?",
+                options: ["SNOMED CT", "LOINC", "RxNorm", "ICD-10-CM"],
+                correctAnswerIndex: 2,
+                feedback: "Correct! RxNorm is specifically used for standardizing clinical drug names."
+            },
+            {
+                question: "In the interoperability pyramid, which layer ensures that health data is exchanged securely and with proper permissions?",
+                options: ["Terminology Standards", "Content/Structure Standards", "Transport Layer", "Privacy & Security Standards"],
+                correctAnswerIndex: 3,
+                feedback: "Correct! Privacy & Security Standards form a foundational layer ensuring secure and authorized data exchange."
+            }
+        ];
+
+        // --- DOM Element References ---
+        // Get references to the HTML elements the script will interact with.
+        const quizContainer = document.getElementById('quiz-container');
+        const quizContent = document.getElementById('quiz-content');
+        const questionArea = document.getElementById('question-area');
+        const questionText = document.getElementById('question-text');
+        const optionsContainer = document.getElementById('options-container');
+        const feedbackDiv = document.getElementById('feedback');
+        const nextButton = document.getElementById('next-button');
+        const prevButton = document.getElementById('prev-button');
+        const resultsDiv = document.getElementById('results');
+        const scoreP = document.getElementById('score');
+
+        // --- State Variables ---
+        let currentQuestionIndex = 0; // Tracks the index of the currently displayed question
+        let score = 0; // Tracks the user's score
+        let userAnswers = new Array(quizData.length).fill(null); // Stores the user's selected answer index for each question
+
+        /**
+         * Loads and displays the current question and its options.
+         * Manages the visibility of navigation buttons.
+         */
+        function loadQuestion() {
+            // Clear feedback from the previous question
+            feedbackDiv.innerHTML = '';
+            feedbackDiv.className = 'mt-4 p-3 rounded-md text-sm font-medium hidden'; // Reset classes and hide
+
+            // Get the data for the current question
+            const currentQuestion = quizData[currentQuestionIndex];
+
+            // Display the question number and text
+            questionText.textContent = `Question ${currentQuestionIndex + 1}: ${currentQuestion.question}`;
+
+            // Clear old options
+            optionsContainer.innerHTML = '';
+
+            // Create and display buttons for each option
+            currentQuestion.options.forEach((option, index) => {
+                const button = document.createElement('button');
+                // Apply Tailwind classes for styling
+                button.className = "block w-full p-3 mb-2 border border-gray-300 bg-gray-100 hover:bg-gray-200 text-gray-700 text-left text-base rounded-lg transition duration-150 ease-in-out disabled:opacity-70 disabled:cursor-not-allowed";
+                button.textContent = option;
+                button.onclick = () => selectAnswer(index); // Set click handler
+                optionsContainer.appendChild(button);
+            });
+
+             // Restore previous state if navigating back
+            if (userAnswers[currentQuestionIndex] !== null) {
+                showFeedback(userAnswers[currentQuestionIndex]);
+            } else {
+                 // Ensure buttons are enabled if no answer was previously selected for this question
+                const buttons = optionsContainer.getElementsByTagName('button');
+                for (let btn of buttons) {
+                    btn.disabled = false;
+                }
+                nextButton.classList.add('hidden'); // Hide next button until an answer is selected
+            }
+
+            // Show/hide Previous button
+            prevButton.classList.toggle('hidden', currentQuestionIndex === 0);
+
+        }
+
+        /**
+         * Handles the user selecting an answer option.
+         * @param {number} selectedIndex - The index of the option button clicked by the user.
+         */
+        function selectAnswer(selectedIndex) {
+            // Store the user's answer
+            userAnswers[currentQuestionIndex] = selectedIndex;
+            // Show feedback for the selected answer
+            showFeedback(selectedIndex);
+        }
+
+        /**
+         * Displays feedback based on the selected answer and manages button states.
+         * @param {number} selectedIndex - The index of the selected option.
+         */
+        function showFeedback(selectedIndex) {
+             const currentQuestion = quizData[currentQuestionIndex];
+             const buttons = optionsContainer.getElementsByTagName('button');
+             const isCorrect = selectedIndex === currentQuestion.correctAnswerIndex;
+
+             // Disable all option buttons
+             for (let btn of buttons) {
+                 btn.disabled = true;
+                 // Reset any previous highlighting
+                 btn.classList.remove('correct-answer-btn', 'incorrect-answer-btn');
+             }
+
+             // Update score only if it's the first time answering this question correctly in this session
+             // Note: Simple score increment; doesn't prevent score change on revisit unless state is managed more complexly.
+             // If revisiting, score logic might need adjustment based on desired behavior.
+             // This implementation increments score if the current selection is correct,
+             // regardless of previous attempts on this question during navigation.
+             // A more robust approach might check if score was already awarded for this index.
+             // For simplicity, we assume score is updated based on the *current* interaction upon selection.
+
+
+             // Display feedback text and style the feedback box
+             feedbackDiv.classList.remove('hidden'); // Make feedback visible
+             if (isCorrect) {
+                 // If the answer is correct
+                 feedbackDiv.textContent = currentQuestion.feedback;
+                 feedbackDiv.className = 'mt-4 p-3 rounded-md text-sm font-medium correct-feedback'; // Apply green styling
+                 buttons[selectedIndex].classList.add('correct-answer-btn'); // Highlight correct button green
+             } else {
+                 // If the answer is incorrect
+                 let wrongFeedback = currentQuestion.feedback.startsWith("Correct! ") ? currentQuestion.feedback.substring(8) : currentQuestion.feedback;
+                 feedbackDiv.textContent = `Not quite. The correct answer explanation: ${wrongFeedback}`;
+                 feedbackDiv.className = 'mt-4 p-3 rounded-md text-sm font-medium incorrect-feedback'; // Apply red styling
+                 buttons[selectedIndex].classList.add('incorrect-answer-btn'); // Highlight selected incorrect button red
+                 // Also highlight the actual correct answer button
+                 if (buttons[currentQuestion.correctAnswerIndex]) {
+                     buttons[currentQuestion.correctAnswerIndex].classList.add('correct-answer-btn');
+                 }
+             }
+
+             // Show the Next button or trigger results display
+             if (currentQuestionIndex < quizData.length - 1) {
+                 nextButton.classList.remove('hidden'); // Show next button
+                 // Optionally scroll to ensure buttons are visible
+                 // nextButton.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+             } else {
+                 // This is the last question
+                 nextButton.classList.add('hidden'); // Hide next button on last question after answering
+                 prevButton.classList.add('hidden'); // Hide prev button as well
+                 // Wait a moment before showing results to allow feedback reading
+                 setTimeout(showResults, 1500);
+             }
+        }
+
+
+        /**
+         * Calculates the final score and displays the results screen.
+         */
+        function showResults() {
+             // Calculate final score based on stored answers
+             score = 0;
+             userAnswers.forEach((answerIndex, questionIndex) => {
+                 if (answerIndex !== null && answerIndex === quizData[questionIndex].correctAnswerIndex) {
+                     score++;
+                 }
+             });
+
+            quizContent.classList.add('hidden'); // Hide the quiz questions/feedback area
+            resultsDiv.classList.remove('hidden'); // Show the results area
+            scoreP.textContent = `Your Score: ${score} out of ${quizData.length}`; // Display the final score
+        }
+
+        // --- Event Listeners ---
+        // Go to the next question when Next button is clicked
+        nextButton.onclick = () => {
+            if (currentQuestionIndex < quizData.length - 1) {
+                currentQuestionIndex++;
+                loadQuestion();
+            }
+        };
+
+        // Go to the previous question when Previous button is clicked
+        prevButton.onclick = () => {
+            if (currentQuestionIndex > 0) {
+                currentQuestionIndex--;
+                loadQuestion(); // Reload the previous question state
+            }
+        };
+
+        // --- Initial Load ---
+        // Load the first question when the page loads.
+        loadQuestion();
+    </script>
+</body>
+</html>
